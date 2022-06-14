@@ -85,7 +85,7 @@ sere_text() {
 
 sere_usage() {
 cat <<USAGE
-Usage: $scriptname [mode] regexp [files]"
+Usage: $scriptname [mode] regexp [files]
 
 Search and replace.
 
