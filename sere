@@ -1,80 +1,171 @@
 #!/bin/sh
+# sere
+# Search and replace.
 
 sere_main() {
-  [ $# -lt 2 ] && sere_usage && return 1
+	scriptpath="` realpath "$0" `"  
+	scriptname="` basename "$scriptpath" `"
+	scriptdir="` dirname "$scriptpath" `"
 
-  export SUBJECT=$1
-  shift
-  export REGEXP=$1
-  shift
+	e_args=16
 
-  case $SUBJECT in
-    name | path | text ) [ $# -lt 1 ] && sere_files . || sere_files $@ ;;
-    * ) sere_usage && return 1 ;;
-  esac
-}
+	while getopts h opt
+	do
+		case $opt in
+			h) sere_usage && return ;;
+			*) _invalid_opt ;;
+		esac
+	done
 
-sere_files() {
-  for file in $@
-  do
-    if [ -d "$file" ]
-    then
-      find "$file" -type f ! -iname '.*' -print0 \
-        | while IFS= read -r -d '' path
-      do
-        sere_process "$path"
-      done
-    else
-      sere_process "$file"
-    fi
-  done
+	shift ` expr $OPTIND - 1 `
+
+	[ -z "$cmd" ] && cmd="$1"
+	shift
+
+	[ -z "$cmd" ] && cmd="help"
+
+	case "$cmd" in
+		name|path|text)
+			[ $# -lt 1 ] && _invalid_arg "Missing regular expression."
+			REGEXP="$1"
+			shift
+			sere_process "$@"
+			;;
+		help|usage) sere_usage ;;
+		*) _invalid_cmd ;;
+	esac
+
+	return $?
 }
 
 sere_name() {
-  path="$1"
-  dir="` dirname "$path" `"
-  newname="` basename "$path" | sed -E "$REGEXP" `"
-  newpath="$dir/$newname"
+	local inpath
+	local dir
+	local outname
+	local outpath
 
-  sere_rename "$path" "$newpath"
+	inpath="$1"
+
+	dir="` dirname "$inpath" `"
+	outname="` basename "$inpath" | sed -E "$REGEXP" `"
+	[ "$dir" = "." ] && outpath="$outname" || outpath="$dir/$outname"
+
+	_rename "$inpath" "$outpath"
 }
 
 sere_path() {
-  path="$1"
-  newpath="` echo "$path" | sed -E "$REGEXP" `"
+	local inpath
+	local outpath
 
-  sere_rename "$path" "$newpath"
+	inpath="$1"
+	outpath="` echo "$inpath" | sed -E "$REGEXP" `"
+
+	_rename "$inpath" "$outpath"
 }
 
 sere_process() {
-  path="$1"
-  sere_$SUBJECT "$path"
-}
+	[ $# -lt 1 ] && sere_process . && return
 
-sere_rename() {
-  path="$1"
-  newpath="$2"
+	local subfile
 
-  [ "$path" == "$newpath" ] && return
-  mv "$path" "$newpath"
+	for file in $@
+	do
+		if [ -d "$file" ]
+		then
+			pushd "$file" 2>&1 > /dev/null
+
+			for subfile in .* *
+			do
+				[ "$subfile" = "." ] || [ "$subfile" = ".." ] && continue
+				echo $subfile
+				sere_process "$subfile"
+			done
+
+			popd 2>&1 > /dev/null
+		fi
+
+		"sere_$cmd" "$file"
+	done
 }
 
 sere_text() {
-  path="$1"
+	local inpath
 
-  ( file "$path" | sed -E 's/^.*: //g' | grep text 2>&1 > /dev/null ) || return
-  sed -E -i '' -e "$REGEXP" "$path"
+	inpath="$1"
+
+	( file "$inpath" | sed -E 's/^.*: //g' | grep text 2>&1 > /dev/null ) || return
+
+	sed -E -i '' -e "$REGEXP" "$inpath"
 }
 
 sere_usage() {
-  echo "Usage: `basename $0` (text|path|name) regexp [files]"
-  echo
-  echo 'text    Search and replace text in files using regexp.'
-  echo 'path    Change path of files using regexp.'
-  echo 'name    Change name of files using regexp.'
-  echo
-  echo 'files   When no files are specify, all files found in current'
-  echo '        directory are used.'
+cat <<USAGE
+Usage: $scriptname [mode] regexp [files]"
+
+Search and replace.
+
+When no files are specify, all files found in current directory are used.
+
+Available modes:
+
+	help      Show this help screen.
+	name      Change name of files using regexp.
+	path      Change path of files using regexp.
+	text      Search and replace text in files using regexp.
+
+Available options:
+
+	-h        Show this help screen.
+
+USAGE
+}
+
+_echo() {
+	echo "$@"
+}
+
+_error() {
+	_echo "$@" >&2
+}
+
+_fatal() {
+	local exit_code
+	exit_code="$1"
+	shift
+	_error "$@"
+	exit "$exit_code"
+}
+
+_invalid_arg() {
+	_error "$@"
+	_echo
+	sere_usage
+	exit $e_args
+}
+
+_invalid_cmd() {
+	_error "Invalid command: $cmd"
+	_echo
+	sere_usage
+	exit $e_args
+}
+
+_invalid_opt() {
+	_error "Invalid option: $opt"
+	_echo
+	sere_usage
+	exit $e_args
+}
+
+_rename() {
+	local inpath
+	local outpath
+
+	inpath="$1"
+	outpath="$2"
+
+	[ "$inpath" = "$outpath" ] && return
+	mv "$inpath" "$outpath"
 }
 
 sere_main "$@"
