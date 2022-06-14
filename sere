@@ -1,0 +1,80 @@
+#!/bin/sh
+
+sere_main() {
+  [ $# -lt 2 ] && sere_usage && return 1
+
+  export SUBJECT=$1
+  shift
+  export REGEXP=$1
+  shift
+
+  case $SUBJECT in
+    name | path | text ) [ $# -lt 1 ] && sere_files . || sere_files $@ ;;
+    * ) sere_usage && return 1 ;;
+  esac
+}
+
+sere_files() {
+  for file in $@
+  do
+    if [ -d "$file" ]
+    then
+      find "$file" -type f ! -iname '.*' -print0 \
+        | while IFS= read -r -d '' path
+      do
+        sere_process "$path"
+      done
+    else
+      sere_process "$file"
+    fi
+  done
+}
+
+sere_name() {
+  path="$1"
+  dir="` dirname "$path" `"
+  newname="` basename "$path" | sed -E "$REGEXP" `"
+  newpath="$dir/$newname"
+
+  sere_rename "$path" "$newpath"
+}
+
+sere_path() {
+  path="$1"
+  newpath="` echo "$path" | sed -E "$REGEXP" `"
+
+  sere_rename "$path" "$newpath"
+}
+
+sere_process() {
+  path="$1"
+  sere_$SUBJECT "$path"
+}
+
+sere_rename() {
+  path="$1"
+  newpath="$2"
+
+  [ "$path" == "$newpath" ] && return
+  mv "$path" "$newpath"
+}
+
+sere_text() {
+  path="$1"
+
+  ( file "$path" | sed -E 's/^.*: //g' | grep text 2>&1 > /dev/null ) || return
+  sed -E -i '' -e "$REGEXP" "$path"
+}
+
+sere_usage() {
+  echo "Usage: `basename $0` (text|path|name) regexp [files]"
+  echo
+  echo 'text    Search and replace text in files using regexp.'
+  echo 'path    Change path of files using regexp.'
+  echo 'name    Change name of files using regexp.'
+  echo
+  echo 'files   When no files are specify, all files found in current'
+  echo '        directory are used.'
+}
+
+sere_main "$@"
