@@ -53,16 +53,6 @@ sere_name() {
 	_rename "$inpath" "$outpath"
 }
 
-sere_path() {
-	local inpath
-	local outpath
-
-	inpath="$1"
-	outpath="` echo "$inpath" | sed -E "$REGEXP" `"
-
-	_rename "$inpath" "$outpath"
-}
-
 sere_process() {
 	[ $# -lt 1 ] && sere_process . && return
 
@@ -70,21 +60,16 @@ sere_process() {
 
 	for file in $@
 	do
-		if [ -d "$file" ]
-		then
-			pushd "$file" 2>&1 > /dev/null
-
-			for subfile in .* *
-			do
-				[ "$subfile" = "." ] || [ "$subfile" = ".." ] && continue
-				echo $subfile
-				sere_process "$subfile"
-			done
-
-			popd 2>&1 > /dev/null
-		fi
-
-		"sere_$cmd" "$file"
+    if [ -d "$file" ]
+    then
+      find "$file" -type f ! -iname '.*' -print0 \
+        | while IFS= read -r -d '' subfile
+      do
+      	"sere_$cmd" "$subfile"
+      done
+    else
+      "sere_$cmd" "$file"
+    fi
 	done
 }
 
@@ -110,7 +95,6 @@ Available modes:
 
 	help      Show this help screen.
 	name      Change name of files using regexp.
-	path      Change path of files using regexp.
 	text      Search and replace text in files using regexp.
 
 Available options:
