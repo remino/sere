@@ -2,6 +2,8 @@
 # sere
 # Search and replace.
 
+VERSION='1.0.0'
+
 sere_main() {
 	scriptpath="` realpath "$0" `"  
 	scriptname="` basename "$scriptpath" `"
