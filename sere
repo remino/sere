@@ -3,7 +3,7 @@
 
 # Generated using mkx 2.3.0: https://github.com/remino/mkx
 
-VERSION='2.0.0'
+VERSION='2.0.1'
 
 sere_main() {
 	trap _exit INT TERM
