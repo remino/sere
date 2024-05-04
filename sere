@@ -77,8 +77,6 @@ sere_process() {
 	[ -z "$DIR" ] && DIR='.'
 
 	[ -d "$DIR" ] || _fatal "$E_MISSING_DIR" "Directory not found: $DIR"
-	# echo "$DIR"
-	# ls -l "$DIR"
 
 	if [ "$DRY_RUN" -ne 0 ]; then
 		_find
