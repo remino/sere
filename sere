@@ -1,109 +1,105 @@
 #!/bin/sh
 # sere
-# Search and replace.
 
-VERSION='1.0.0'
+# Generated using mkx 2.3.0: https://github.com/remino/mkx
+
+VERSION='2.0.0'
 
 sere_main() {
-	scriptpath="` realpath "$0" `"  
-	scriptname="` basename "$scriptpath" `"
-	scriptdir="` dirname "$scriptpath" `"
+	trap _exit INT TERM
 
-	e_args=16
+	E_ARGS=16
+	E_MISSING_DIR=17
 
-	while getopts h opt
-	do
-		case $opt in
-			h) sere_usage && return ;;
+	SCRIPT_INV="$(basename "$0")"
+	SCRIPT_PATH="$(readlink -f "$0")"
+	SCRIPT_NAME="$(basename "$SCRIPT_PATH")"
+
+	CMD=
+	DRY_RUN=0
+	FIXED=0
+	HIDDEN=0
+
+	while getopts FHhnv OPT; do
+		case $OPT in
+			F) FIXED=1 ;;
+			H) HIDDEN=1 ;;
+			h) CMD=help ;;
+			n) DRY_RUN=1 ;;
+			v) CMD=version ;;
 			*) _invalid_opt ;;
 		esac
 	done
 
-	shift ` expr $OPTIND - 1 `
+	shift "$((OPTIND - 1))"
 
-	[ -z "$cmd" ] && cmd="$1"
-	shift
+	if [ -z "$CMD" ]; then
+		[ $# -eq 0 ] && CMD="help" || CMD="process"
+	fi
 
-	[ -z "$cmd" ] && cmd="help"
-
-	case "$cmd" in
-		name|path|text)
-			[ $# -lt 1 ] && _invalid_arg "Missing regular expression."
-			REGEXP="$1"
-			shift
-			sere_process "$@"
-			;;
-		help|usage) sere_usage ;;
+	case "$CMD" in
+		help | process | version) "sere_$CMD" "$@" ;;
 		*) _invalid_cmd ;;
 	esac
 
-	return $?
+	_exit
 }
 
-sere_name() {
-	local inpath
-	local dir
-	local outname
-	local outpath
+sere_help() {
+	cat << USAGE
+$SCRIPT_NAME $VERSION
 
-	inpath="$1"
+USAGE: $SCRIPT_INV [<options>] <pattern> <replacement> [<directory>]
 
-	dir="` dirname "$inpath" `"
-	outname="` basename "$inpath" | sed -E "$REGEXP" `"
-	[ "$dir" = "." ] && outpath="$outname" || outpath="$dir/$outname"
+Search and replace text in files in a directory using regular expressions.
 
-	_rename "$inpath" "$outpath"
+If <directory> is not specified, the current directory is used.
+
+OPTIONS:
+
+	-F        Match using a fixed string, not a regular expression.
+	-H        Include hidden files and directories.
+	-h        Show this help screen.
+	-n        Dry run. Show every file to be modified, but do not modify them.
+	-v        Show script name and version number.
+
+USAGE
 }
 
 sere_process() {
-	[ $# -lt 1 ] && sere_process . && return
+	PATTERN="$1"
+	[ -z "$PATTERN" ] && _fatal "$E_ARGS" "Missing pattern"
 
-	local subfile
+	REPLACEMENT="$2"
+	[ -z "$REPLACEMENT" ] && _fatal "$E_ARGS" "Missing replacement"
 
-	for file in $@
-	do
-    if [ -d "$file" ]
-    then
-      find "$file" -type f ! -iname '.*' -print0 \
-        | while IFS= read -r -d '' subfile
-      do
-      	"sere_$cmd" "$subfile"
-      done
-    else
-      "sere_$cmd" "$file"
-    fi
+	DIR="$3"
+	[ -z "$DIR" ] && DIR='.'
+
+	[ -d "$DIR" ] || _fatal "$E_MISSING_DIR" "Directory not found: $DIR"
+	# echo "$DIR"
+	# ls -l "$DIR"
+
+	if [ "$DRY_RUN" -ne 0 ]; then
+		_find
+		return
+	fi
+
+	if [ "$FIXED" -ne 0 ]; then
+		_find | while read -r file; do
+			_replace "s/$(_escape_regexp "$PATTERN")/$(_escape_regexp "$REPLACEMENT")/g" "$file"
+		done
+
+		return
+	fi
+
+	_find | while read -r file; do
+		_replace "s/$PATTERN/$REPLACEMENT/g" "$file"
 	done
 }
 
-sere_text() {
-	local inpath
-
-	inpath="$1"
-
-	( file "$inpath" | sed -E 's/^.*: //g' | grep text 2>&1 > /dev/null ) || return
-
-	sed -E -i '' -e "$REGEXP" "$inpath"
-}
-
-sere_usage() {
-cat <<USAGE
-Usage: $scriptname [mode] regexp [files]
-
-Search and replace.
-
-When no files are specify, all files found in current directory are used.
-
-Available modes:
-
-	help      Show this help screen.
-	name      Change name of files using regexp.
-	text      Search and replace text in files using regexp.
-
-Available options:
-
-	-h        Show this help screen.
-
-USAGE
+sere_version() {
+	_echo "$SCRIPT_NAME $VERSION"
 }
 
 _echo() {
@@ -114,44 +110,55 @@ _error() {
 	_echo "$@" >&2
 }
 
+_escape_regexp() {
+	echo "$1" | sed 's/[]\/$*.^|[]/\\&/g'
+}
+
+_exit() {
+	exit_code=$?
+	exit "$exit_code"
+}
+
 _fatal() {
-	local exit_code
 	exit_code="$1"
 	shift
 	_error "$@"
 	exit "$exit_code"
 }
 
-_invalid_arg() {
-	_error "$@"
-	_echo
-	sere_usage
-	exit $e_args
+_find() {
+	OPT_FIXED=
+	[ "$FIXED" -ne 0 ] && OPT_FIXED='-F'
+
+	if [ "$HIDDEN" -eq 0 ]; then
+		find "$DIR" -not -path '*/\.*' -type f | while read -r file; do
+			# shellcheck disable=SC2086
+			grep -E -l $OPT_FIXED -- "$PATTERN" "$file"
+		done
+
+		return
+	fi
+
+	# shellcheck disable=SC2086
+	grep -E -l $OPT_FIXED -- "$PATTERN" "$DIR"
 }
 
 _invalid_cmd() {
-	_error "Invalid command: $cmd"
+	_error "Invalid command: $CMD"
 	_echo
-	sere_usage
-	exit $e_args
+	sere_help
+	exit "$E_ARGS"
 }
 
 _invalid_opt() {
-	_error "Invalid option: $opt"
+	_error "Invalid option: $OPT"
 	_echo
-	sere_usage
-	exit $e_args
+	sere_help
+	exit "$E_ARGS"
 }
 
-_rename() {
-	local inpath
-	local outpath
-
-	inpath="$1"
-	outpath="$2"
-
-	[ "$inpath" = "$outpath" ] && return
-	mv "$inpath" "$outpath"
+_replace() {
+	perl -p -i -e "$@"
 }
 
 sere_main "$@"

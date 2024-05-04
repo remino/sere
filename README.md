@@ -1,21 +1,10 @@
 sere
 ====
 
-```
-Usage: sere [mode] regexp [files]
+Search and replace text in files in a directory using regular expressions.
 
-Search and replace.
+See `sere -h` for usage help.
 
-When no files are specify, all files found in current directory are used.
+# Backwards Incompatibility
 
-Available modes:
-
-	help      Show this help screen.
-	name      Change name of files using regexp.
-	text      Search and replace text in files using regexp.
-
-Available options:
-
-	-h        Show this help screen.
-```
-
+This version of `sere` is not backwards compatible with version 1.0.
