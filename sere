@@ -49,11 +49,12 @@ sere_help() {
 	cat << USAGE
 $SCRIPT_NAME $VERSION
 
-USAGE: $SCRIPT_INV [<options>] <pattern> <replacement> [<directory>]
+USAGE: $SCRIPT_INV [<options>] <pattern> <replacement> [<inputpath>]
 
-Search and replace text in files in a directory using regular expressions.
+Search and replace text in a file or all files in a directory using
+regular expressions.
 
-If <directory> is not specified, the current directory is used.
+If <inputpath> is not specified, the current directory is used.
 
 OPTIONS:
 
@@ -73,12 +74,10 @@ sere_process() {
 	REPLACEMENT="$2"
 	[ -z "$REPLACEMENT" ] && _fatal "$E_ARGS" "Missing replacement"
 
-	DIR="$3"
-	[ -z "$DIR" ] && DIR='.'
+	INPUT="$3"
+	[ -z "$INPUT" ] && INPUT='.'
 
-	[ -d "$DIR" ] || _fatal "$E_MISSING_DIR" "Directory not found: $DIR"
-	# echo "$DIR"
-	# ls -l "$DIR"
+	[ -e "$INPUT" ] || _fatal "$E_MISSING_FILE" "File or directory not found: $INPUT"
 
 	if [ "$DRY_RUN" -ne 0 ]; then
 		_find
@@ -131,7 +130,7 @@ _find() {
 	[ "$FIXED" -ne 0 ] && OPT_FIXED='-F'
 
 	if [ "$HIDDEN" -eq 0 ]; then
-		find "$DIR" -not -path '*/\.*' -type f | while read -r file; do
+		find "$INPUT" -not -path '*/\.*' -type f | while read -r file; do
 			# shellcheck disable=SC2086
 			grep -E -l $OPT_FIXED -- "$PATTERN" "$file"
 		done
@@ -140,7 +139,7 @@ _find() {
 	fi
 
 	# shellcheck disable=SC2086
-	grep -E -l $OPT_FIXED -- "$PATTERN" "$DIR"
+	grep -E -l $OPT_FIXED -- "$PATTERN" "$INPUT"
 }
 
 _invalid_cmd() {
