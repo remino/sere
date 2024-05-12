@@ -139,7 +139,7 @@ _find() {
 	fi
 
 	# shellcheck disable=SC2086
-	grep -E -l $OPT_FIXED -- "$PATTERN" "$INPUT"
+	grep -E -l -r $OPT_FIXED -- "$PATTERN" "$INPUT"
 }
 
 _invalid_cmd() {
